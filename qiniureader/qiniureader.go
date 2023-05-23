@@ -10,8 +10,18 @@ import (
 
 type QiniuReader struct {
 	Key    string
+	Offset *int64
+	Size   *int64
 	closed bool
 	body   io.ReadCloser
+}
+
+func NewQiniuReader(key string, offset *int64, size *int64) *QiniuReader {
+	return &QiniuReader{
+		Key:    key,
+		Offset: offset,
+		Size:   size,
+	}
 }
 
 func (reader *QiniuReader) SeekStart() error {
@@ -39,16 +49,23 @@ func (reader *QiniuReader) Read(p []byte) (n int, err error) {
 	}
 
 	if reader.body == nil {
-		resp, err := operation.NewDownloaderV2().DownloadRaw(reader.Key, http.Header{})
-		if err != nil {
-			return 0, err
+		dl := operation.NewDownloaderV2()
+		if reader.Offset == nil {
+			resp, err := dl.DownloadRaw(reader.Key, http.Header{})
+			if err != nil {
+				return 0, err
+			}
+			if resp.StatusCode != http.StatusOK {
+				return 0, fmt.Errorf(resp.Status)
+			}
+			reader.body = resp.Body
+		} else {
+			_, rc, err := dl.DownloadRangeReader(reader.Key, *reader.Offset, *reader.Size)
+			if err != nil {
+				return 0, err
+			}
+			reader.body = rc
 		}
-
-		if resp.StatusCode != http.StatusOK {
-			return 0, fmt.Errorf(resp.Status)
-		}
-
-		reader.body = resp.Body
 	}
 
 	return reader.body.Read(p)
