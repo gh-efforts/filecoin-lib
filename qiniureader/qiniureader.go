@@ -1,9 +1,11 @@
 package qiniureader
 
 import (
+	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
+	"os"
 
 	"github.com/service-sdk/go-sdk-qn/syncdata/operation"
 )
@@ -47,9 +49,23 @@ func (reader *QiniuReader) Read(p []byte) (n int, err error) {
 	if reader.closed {
 		return 0, fmt.Errorf("file reader closed")
 	}
-
 	if reader.body == nil {
-		dl := operation.NewDownloaderV2()
+		var dl *operation.Downloader
+		cfgPath := os.Getenv("QINIU_READER_CONFIG_PATH")
+		if cfgPath != "" {
+			fb, err := os.ReadFile(cfgPath)
+			if err != nil {
+				return 0, err
+			}
+			var config operation.Config
+			err = json.Unmarshal(fb, &config)
+			if err != nil {
+				return 0, err
+			}
+			dl = operation.NewDownloader(&config)
+		} else {
+			dl = operation.NewDownloaderV2()
+		}
 		if reader.Offset == nil {
 			resp, err := dl.DownloadRaw(reader.Key, http.Header{})
 			if err != nil {
