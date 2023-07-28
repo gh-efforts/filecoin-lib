@@ -1,7 +1,6 @@
 package qiniureader
 
 import (
-	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
@@ -53,16 +52,11 @@ func (reader *QiniuReader) Read(p []byte) (n int, err error) {
 		var dl *operation.Downloader
 		cfgPath := os.Getenv("QINIU_READER_CONFIG_PATH")
 		if cfgPath != "" {
-			fb, err := os.ReadFile(cfgPath)
+			configurable, err := operation.Load(cfgPath)
 			if err != nil {
-				return 0, err
+				return 0, fmt.Errorf("load qiniu config failed: %s", err)
 			}
-			var config operation.Config
-			err = json.Unmarshal(fb, &config)
-			if err != nil {
-				return 0, err
-			}
-			dl = operation.NewDownloader(&config)
+			dl = operation.NewDownloader(configurable)
 		} else {
 			dl = operation.NewDownloaderV2()
 		}
